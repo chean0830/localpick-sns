@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>게시글 | 로컬픽</title>
+  <link rel="icon" href="/img/logo.svg">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<header id="header"></header>
+<main class="narrow">
+  <div id="post"></div>
+  <div class="card" id="comments" style="margin-top:16px">
+    <h3 class="section-title">댓글</h3>
+    <div id="commentList"></div>
+    <form class="comment-form" id="commentForm">
+      <input class="input" id="commentInput" maxlength="500" placeholder="댓글을 입력하세요">
+      <button class="btn btn-primary">등록</button>
+    </form>
+  </div>
+</main>
+<script src="/js/app.js"></script>
+<script>
+  const id = LP.param('id');
+  const postEl = document.getElementById('post');
+
+  async function loadPost() {
+    try {
+      const p = await LP.api('/api/posts/' + id);
+      postEl.innerHTML = LP.postCard(p) + (p.mine ? `
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+          <a class="btn btn-line btn-sm" href="/write.html?id=${p.id}">수정</a>
+          <button class="btn btn-line btn-sm" id="deleteBtn">삭제</button>
+        </div>` : '');
+      const del = document.getElementById('deleteBtn');
+      if (del) del.addEventListener('click', async () => {
+        if (!confirm('게시글을 삭제할까요?')) return;
+        await LP.api('/api/posts/' + id, { method: 'DELETE' });
+        location.href = '/';
+      });
+    } catch (e) {
+      postEl.innerHTML = `<div class="card empty">${LP.esc(e.message)}</div>`;
+      document.getElementById('comments').style.display = 'none';
+    }
+  }
+
+  async function loadComments() {
+    const list = await LP.api(`/api/posts/${id}/comments`);
+    document.getElementById('commentList').innerHTML = list.length ? list.map(c => `
+      <div class="comment">
+        <span class="who">${LP.esc(c.authorNickname)}</span>
+        <span class="muted"> · ${LP.timeAgo(c.createdAt)}</span>
+        ${c.mine ? `<button class="btn btn-sm" data-del="${c.id}" style="float:right">삭제</button>` : ''}
+        <div>${LP.esc(c.content)}</div>
+      </div>`).join('') : '<p class="muted">첫 댓글을 남겨 보세요.</p>';
+  }
+
+  document.getElementById('commentForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    if (!LP.me) return LP.requireLogin();
+    const input = document.getElementById('commentInput');
+    if (!input.value.trim()) return;
+    try {
+      await LP.api(`/api/posts/${id}/comments`, { method: 'POST', body: { content: input.value } });
+      input.value = '';
+      loadComments();
+    } catch (err) { LP.toast(err.message); }
+  });
+  document.getElementById('commentList').addEventListener('click', async e => {
+    const b = e.target.closest('[data-del]');
+    if (!b) return;
+    await LP.api('/api/comments/' + b.dataset.del, { method: 'DELETE' });
+    loadComments();
+  });
+
+  LP.bindLikes(postEl);
+  LP.renderHeader().then(() => { loadPost(); loadComments(); });
+</script>
+</body>
+</html>
