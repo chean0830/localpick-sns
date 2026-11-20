@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>동네 가게 소식 | 로컬픽</title>
+  <link rel="icon" href="/img/logo.svg">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<header id="header"></header>
+<main class="container layout">
+  <nav class="side-nav" id="tabs">
+    <a href="#" data-tab="all" class="active">전체 피드</a>
+    <a href="#" data-tab="follow">팔로우 피드</a>
+    <a href="#" data-tab="local">우리동네</a>
+    <a href="#" data-tab="event">이벤트</a>
+    <a href="/stores.html">가게 찾기</a>
+  </nav>
+
+  <section>
+    <div class="card" id="regionBox" style="display:none;margin-bottom:16px">
+      <form id="regionForm" style="display:flex;gap:8px">
+        <input class="input" id="region" placeholder="동네 이름 (예: 망원동)">
+        <button class="btn btn-primary">보기</button>
+      </form>
+    </div>
+    <div class="feed" id="feed"></div>
+    <div style="text-align:center;margin:20px 0">
+      <button class="btn btn-line" id="moreBtn" style="display:none">더 보기</button>
+    </div>
+  </section>
+
+  <aside>
+    <div class="widget" id="eventWidget">
+      <h3 class="section-title">진행 중 이벤트</h3>
+      <div id="events"></div>
+      <a class="muted" href="/events.html">전체 보기 →</a>
+    </div>
+    <div class="widget">
+      <h3 class="section-title">인기 해시태그</h3>
+      <div id="tags"></div>
+    </div>
+  </aside>
+</main>
+<script src="/js/app.js"></script>
+<script>
+  let tab = 'all', page = 0;
+  const feed = document.getElementById('feed');
+  const moreBtn = document.getElementById('moreBtn');
+  const regionInput = document.getElementById('region');
+  regionInput.value = localStorage.getItem('lp-region') || '망원동';
+
+  async function loadFeed(reset) {
+    if (reset) { page = 0; feed.innerHTML = ''; }
+    if (tab === 'follow' && !LP.me) {
+      feed.innerHTML = '<div class="card empty">로그인하면 팔로우한 가게 소식을 볼 수 있어요.<br><br><a class="btn btn-navy" href="/login.html">로그인</a></div>';
+      moreBtn.style.display = 'none';
+      return;
+    }
+    const params = new URLSearchParams({ tab, page });
+    if (tab === 'local') params.set('region', regionInput.value.trim());
+    const data = await LP.api('/api/posts?' + params);
+    if (reset && !data.items.length) {
+      feed.innerHTML = `<div class="card empty">${tab === 'follow' ? '아직 팔로우한 가게가 없어요. 가게를 찾아 단골 등록해 보세요!' : '게시글이 없습니다.'}</div>`;
+    }
+    feed.insertAdjacentHTML('beforeend', data.items.map(p => LP.postCard(p)).join(''));
+    moreBtn.style.display = data.hasNext ? 'inline-flex' : 'none';
+  }
+
+  async function loadSide() {
+    const events = await LP.api('/api/events');
+    document.getElementById('events').innerHTML = events.length
+      ? events.slice(0, 3).map(e => LP.eventItem(e)).join('')
+      : '<p class="muted">진행 중인 이벤트가 없어요.</p>';
+    const tags = await LP.api('/api/tags/popular');
+    document.getElementById('tags').innerHTML = tags
+      .map(t => `<a class="chip" href="/search.html?tag=${encodeURIComponent(t)}">#${LP.esc(t)}</a>`).join('');
+  }
+
+  document.getElementById('tabs').addEventListener('click', e => {
+    const a = e.target.closest('[data-tab]');
+    if (!a) return;
+    e.preventDefault();
+    document.querySelectorAll('#tabs a').forEach(x => x.classList.toggle('active', x === a));
+    tab = a.dataset.tab;
+    document.getElementById('regionBox').style.display = tab === 'local' ? 'block' : 'none';
+    loadFeed(true);
+  });
+  document.getElementById('regionForm').addEventListener('submit', e => {
+    e.preventDefault();
+    localStorage.setItem('lp-region', regionInput.value.trim());
+    loadFeed(true);
+  });
+  moreBtn.addEventListener('click', () => { page++; loadFeed(false); });
+
+  LP.bindLikes(feed);
+  LP.bindCoupons(document.getElementById('eventWidget'), loadSide);
+  LP.renderHeader().then(() => { loadFeed(true); loadSide(); });
+</script>
+</body>
+</html>

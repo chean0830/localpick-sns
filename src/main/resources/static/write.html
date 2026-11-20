@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>글쓰기 | 로컬픽</title>
+  <link rel="icon" href="/img/logo.svg">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<header id="header"></header>
+<main class="narrow">
+  <form class="card" id="writeForm">
+    <h2 id="formTitle" style="margin-top:0">게시글 작성</h2>
+
+    <div class="form-row" id="typeRow">
+      <label>게시글 유형</label>
+      <div class="radio-chips">
+        <input type="radio" name="type" id="tNormal" value="NORMAL" checked><label for="tNormal">일반</label>
+        <input type="radio" name="type" id="tPromo" value="PROMO"><label for="tPromo">홍보</label>
+        <input type="radio" name="type" id="tEvent" value="EVENT"><label for="tEvent">이벤트</label>
+      </div>
+      <p class="muted" id="ownerHint" style="display:none">홍보·이벤트 글은 사장님 회원만 쓸 수 있어요.</p>
+    </div>
+
+    <div class="form-row" id="storeRow" style="display:none">
+      <label for="store">가게 선택</label>
+      <select class="input" id="store"></select>
+    </div>
+
+    <div class="form-row" id="imageRow">
+      <label>사진 <span class="muted">(최대 5장)</span></label>
+      <div class="upload-list" id="uploads">
+        <label class="upload-add" for="fileInput">+ 추가</label>
+      </div>
+      <input type="file" id="fileInput" accept="image/*" multiple hidden>
+    </div>
+
+    <div class="form-row">
+      <label for="content">내용</label>
+      <textarea class="input" id="content" maxlength="3000" placeholder="가게 소식, 신메뉴, 이벤트를 알려 주세요"></textarea>
+    </div>
+
+    <div class="form-row">
+      <label for="tags">해시태그</label>
+      <input class="input" id="tags" placeholder="#신메뉴 #망원동 (띄어쓰기로 구분)">
+    </div>
+
+    <div class="form-row coupon-box" id="couponRow" style="display:none">
+      <label>쿠폰 이벤트 설정</label>
+      <div class="form-row"><input class="input" id="evTitle" placeholder="이벤트명 (예: 오픈 기념 20% 할인)"></div>
+      <div class="form-row"><input class="input" id="evBenefit" placeholder="혜택 내용 (예: 전 메뉴 20% 할인)"></div>
+      <div class="grid-2">
+        <div><label for="evStart">시작일</label><input class="input" type="date" id="evStart"></div>
+        <div><label for="evEnd">종료일</label><input class="input" type="date" id="evEnd"></div>
+      </div>
+      <div style="margin-top:12px"><label for="evQty">쿠폰 수량</label><input class="input" type="number" id="evQty" min="1" value="100"></div>
+    </div>
+
+    <p class="error" id="error"></p>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <a class="btn btn-line" href="javascript:history.back()">취소</a>
+      <button class="btn btn-primary" id="submitBtn">등록</button>
+    </div>
+  </form>
+</main>
+<script src="/js/app.js"></script>
+<script>
+  const editId = LP.param('id');
+  const images = [];
+  const $ = id => document.getElementById(id);
+  const parseTags = s => s.split(/[\s,]+/).map(t => t.replace(/^#+/, '')).filter(Boolean);
+  const currentType = () => document.querySelector('input[name=type]:checked').value;
+
+  function renderUploads() {
+    $('uploads').querySelectorAll('.thumb').forEach(n => n.remove());
+    images.forEach((url, i) => {
+      $('uploads').insertAdjacentHTML('beforeend',
+        `<div class="thumb"><img src="${LP.esc(url)}" alt=""><button type="button" data-rm="${i}">×</button></div>`);
+    });
+    document.querySelector('.upload-add').style.display = images.length >= 5 ? 'none' : 'grid';
+  }
+
+  function onTypeChange() {
+    const t = currentType();
+    $('storeRow').style.display = t === 'NORMAL' ? 'none' : 'block';
+    $('couponRow').style.display = t === 'EVENT' ? 'block' : 'none';
+  }
+
+  async function init() {
+    const me = await LP.requireLogin();
+    await LP.renderHeader();
+    if (editId) {
+      const p = await LP.api('/api/posts/' + editId);
+      $('formTitle').textContent = '게시글 수정';
+      $('typeRow').style.display = 'none';
+      $('imageRow').style.display = 'none';
+      $('content').value = p.content;
+      $('tags').value = p.tags.map(t => '#' + t).join(' ');
+      $('submitBtn').textContent = '수정';
+      return;
+    }
+    if (me.role !== 'OWNER') {
+      $('tPromo').disabled = true;
+      $('tEvent').disabled = true;
+      $('ownerHint').style.display = 'block';
+    } else {
+      const stores = (await LP.api('/api/stores/mine')).filter(s => s.status === 'OK');
+      $('store').innerHTML = stores.length
+        ? stores.map(s => `<option value="${s.id}">${LP.esc(s.name)}</option>`).join('')
+        : '<option value="">승인된 가게가 없습니다 (마이페이지에서 가게 등록)</option>';
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    $('evStart').value = today;
+    $('evEnd').value = new Date(Date.now() + 13 * 86400000).toISOString().slice(0, 10);
+  }
+
+  document.querySelectorAll('input[name=type]').forEach(r => r.addEventListener('change', onTypeChange));
+
+  $('fileInput').addEventListener('change', async e => {
+    for (const file of [...e.target.files].slice(0, 5 - images.length)) {
+      const form = new FormData();
+      form.append('file', file);
+      try {
+        const r = await LP.api('/api/files', { method: 'POST', form });
+        images.push(r.url);
+      } catch (err) { LP.toast(err.message); }
+    }
+    e.target.value = '';
+    renderUploads();
+  });
+  $('uploads').addEventListener('click', e => {
+    const b = e.target.closest('[data-rm]');
+    if (!b) return;
+    images.splice(Number(b.dataset.rm), 1);
+    renderUploads();
+  });
+
+  $('writeForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    $('error').textContent = '';
+    try {
+      if (editId) {
+        await LP.api('/api/posts/' + editId, { method: 'PUT', body: { content: $('content').value, tags: parseTags($('tags').value) } });
+        location.href = '/post.html?id=' + editId;
+        return;
+      }
+      const type = currentType();
+      const body = {
+        type,
+        storeId: type === 'NORMAL' ? null : Number($('store').value) || null,
+        content: $('content').value,
+        imageUrls: images,
+        tags: parseTags($('tags').value),
+        event: type === 'EVENT' ? {
+          title: $('evTitle').value, benefit: $('evBenefit').value,
+          startDate: $('evStart').value, endDate: $('evEnd').value, couponQty: Number($('evQty').value)
+        } : null
+      };
+      const p = await LP.api('/api/posts', { method: 'POST', body });
+      location.href = '/post.html?id=' + p.id;
+    } catch (err) {
+      $('error').textContent = err.message;
+    }
+  });
+
+  init();
+</script>
+</body>
+</html>

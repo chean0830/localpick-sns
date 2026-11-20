@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>마이페이지 | 로컬픽</title>
+  <link rel="icon" href="/img/logo.svg">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<header id="header"></header>
+<main class="container" style="max-width:860px">
+  <div class="card" id="profile"></div>
+  <div class="tabs" id="tabs">
+    <button data-tab="posts" class="active">내 게시글</button>
+    <button data-tab="following">팔로우 가게</button>
+    <button data-tab="coupons">내 쿠폰함</button>
+    <button data-tab="stores" id="storesTab" style="display:none">내 가게 · 홍보 통계</button>
+  </div>
+  <div id="tabBody"></div>
+</main>
+<script src="/js/app.js"></script>
+<script>
+  const body = document.getElementById('tabBody');
+  const STATUS = { WAIT: '승인 대기', OK: '운영 중', REJECT: '반려' };
+  const COUPON = { UNUSED: '사용 가능', USED: '사용 완료', EXPIRED: '기간 만료' };
+  let me;
+
+  function renderProfile() {
+    document.getElementById('profile').innerHTML = `
+      <div style="display:flex;align-items:center;gap:16px">
+        <div class="avatar" style="width:56px;height:56px;font-size:22px">${LP.esc(me.nickname.charAt(0))}</div>
+        <div style="flex:1">
+          <b style="font-size:18px">${LP.esc(me.nickname)}</b>
+          <div class="muted">${LP.esc(me.email)} · ${me.role === 'OWNER' ? '사장님 회원' : me.role === 'ADMIN' ? '관리자' : '일반 회원'}</div>
+        </div>
+        <button class="btn btn-line btn-sm" id="editBtn">닉네임 변경</button>
+      </div>`;
+    document.getElementById('editBtn').addEventListener('click', async () => {
+      const nickname = prompt('새 닉네임', me.nickname);
+      if (!nickname) return;
+      try {
+        me = await LP.api('/api/auth/me', { method: 'PUT', body: { nickname, profileImg: me.profileImg } });
+        renderProfile();
+        LP.renderHeader();
+      } catch (e) { LP.toast(e.message); }
+    });
+  }
+
+  async function showTab(tab) {
+    document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+    if (tab === 'posts') {
+      const posts = await LP.api('/api/posts/mine');
+      body.innerHTML = posts.length ? `<div class="feed">${posts.map(p => LP.postCard(p)).join('')}</div>`
+        : '<div class="card empty">작성한 게시글이 없어요.</div>';
+    } else if (tab === 'following') {
+      const stores = await LP.api('/api/stores/following');
+      body.innerHTML = `<div class="card">${stores.length ? stores.map(s => `
+        <div class="list-item"><a href="/store.html?id=${s.id}"><b>${LP.esc(s.name)}</b>
+        <span class="muted"> ${LP.esc(s.category)} · ${LP.esc(s.region)}</span></a></div>`).join('')
+        : '<p class="empty">팔로우한 가게가 없어요.</p>'}</div>`;
+    } else if (tab === 'coupons') {
+      const coupons = await LP.api('/api/coupons/mine');
+      body.innerHTML = `<div class="card">${coupons.length ? coupons.map(c => `
+        <div class="list-item">
+          <div><b>${LP.esc(c.benefit)}</b><div class="muted">${LP.esc(c.storeName)} · ${LP.esc(c.eventTitle)} · ~${c.endDate}</div></div>
+          ${c.status === 'UNUSED'
+            ? `<button class="btn btn-primary btn-sm" data-use="${c.id}">매장에서 사용</button>`
+            : `<span class="badge">${COUPON[c.status]}</span>`}
+        </div>`).join('') : '<p class="empty">받은 쿠폰이 없어요.</p>'}</div>`;
+    } else if (tab === 'stores') {
+      await renderStores();
+    }
+  }
+
+  async function renderStores() {
+    const stores = await LP.api('/api/stores/mine');
+    const stats = await Promise.all(stores.map(s => s.status === 'OK' ? LP.api(`/api/stores/${s.id}/stats`) : null));
+    body.innerHTML = stores.map((s, i) => `
+      <div class="card" style="margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <a href="/store.html?id=${s.id}"><b style="font-size:16px">${LP.esc(s.name)}</b></a>
+          <span class="badge ${s.status === 'OK' ? 'PROMO' : ''}">${STATUS[s.status]}</span>
+        </div>
+        ${stats[i] ? `<div class="stat-cards">
+          <div><b>${stats[i].postCount}</b><span class="muted">게시글</span></div>
+          <div><b>${stats[i].totalViews}</b><span class="muted">총 조회수</span></div>
+          <div><b>${stats[i].totalLikes}</b><span class="muted">좋아요</span></div>
+          <div><b>${stats[i].followerCount}</b><span class="muted">팔로워</span></div>
+          <div><b>${stats[i].couponIssued}</b><span class="muted">쿠폰 발급</span></div>
+          <div><b>${stats[i].couponUseRate}%</b><span class="muted">쿠폰 사용률</span></div>
+        </div>` : '<p class="muted">관리자 승인 후 홍보 글을 올릴 수 있어요.</p>'}
+      </div>`).join('') + `
+      <form class="card" id="storeForm">
+        <h3 class="section-title">새 가게 등록</h3>
+        <div class="grid-2">
+          <div class="form-row"><label>가게명</label><input class="input" name="name" required></div>
+          <div class="form-row"><label>업종</label><input class="input" name="category" placeholder="카페, 베이커리…" required></div>
+        </div>
+        <div class="form-row"><label>주소</label><input class="input" name="address" required></div>
+        <div class="grid-2">
+          <div class="form-row"><label>동네</label><input class="input" name="region" placeholder="망원동" required></div>
+          <div class="form-row"><label>영업시간</label><input class="input" name="openHours" placeholder="10:00~21:00"></div>
+        </div>
+        <div class="form-row"><label>소개</label><textarea class="input" name="intro" style="min-height:80px"></textarea></div>
+        <p class="error" id="storeError"></p>
+        <button class="btn btn-primary">등록 신청</button>
+      </form>`;
+    document.getElementById('storeForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      const data = Object.fromEntries(new FormData(e.target));
+      try {
+        await LP.api('/api/stores', { method: 'POST', body: data });
+        LP.toast('등록 신청 완료! 관리자 승인 후 운영됩니다.');
+        renderStores();
+      } catch (err) { document.getElementById('storeError').textContent = err.message; }
+    });
+  }
+
+  document.getElementById('tabs').addEventListener('click', e => {
+    const b = e.target.closest('[data-tab]');
+    if (b) showTab(b.dataset.tab);
+  });
+  body.addEventListener('click', async e => {
+    const b = e.target.closest('[data-use]');
+    if (!b) return;
+    if (!confirm('매장 직원에게 화면을 보여 준 뒤 눌러 주세요. 사용 처리할까요?')) return;
+    try {
+      await LP.api(`/api/coupons/${b.dataset.use}/use`, { method: 'POST' });
+      showTab('coupons');
+    } catch (err) { LP.toast(err.message); }
+  });
+  LP.bindLikes(body);
+
+  (async () => {
+    me = await LP.requireLogin();
+    await LP.renderHeader();
+    renderProfile();
+    if (me.role === 'OWNER') document.getElementById('storesTab').style.display = 'block';
+    showTab(location.hash === '#stores' && me.role === 'OWNER' ? 'stores' : 'posts');
+  })();
+</script>
+</body>
+</html>
