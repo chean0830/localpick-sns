@@ -21,7 +21,7 @@
 |---|---|
 | Backend | Java 17, Spring Boot 3.3, Spring Data JPA, Bean Validation, spring-security-crypto(BCrypt) |
 | Database | H2 (local), MySQL 8 (mysql 프로필) |
-| Frontend | HTML, CSS, Vanilla JavaScript (fetch API) |
+| Frontend | **React 19 + Vite** (`frontend/`), 1차 버전 HTML/CSS/Vanilla JS (`src/main/resources/static`) |
 | 협업 | Git, GitHub (Git Flow 기반 브랜치 전략, Pull Request) |
 
 ## 실행 방법
@@ -39,6 +39,15 @@
 | 사장님 | owner@localpick.kr | owner1234 |
 | 관리자 | admin@localpick.kr | admin1234 |
 
+### React 프론트엔드 (개발 서버)
+
+```bash
+# 백엔드(8080)를 먼저 실행한 뒤
+cd frontend
+npm install
+npm run dev                # http://localhost:5173  (/api 요청은 8080으로 프록시)
+```
+
 MySQL로 실행하려면 `localpick` DB를 만든 뒤 `./gradlew bootRun --args='--spring.profiles.active=mysql'`.
 
 ## 프로젝트 구조
@@ -52,6 +61,7 @@ src/main/java/com/localpick
 ├─ dto/           요청·응답 DTO (record)
 └─ global/        예외 처리, 세션, 설정, 샘플 데이터
 src/main/resources/static   프론트엔드 (HTML/CSS/JS)
+frontend/src                React 앱 (pages · components · hooks · context · lib)
 docs/                       기획 문서 (요구사항, ERD, 화면 설계, 결과보고서)
 ```
 
@@ -83,9 +93,17 @@ fix/*             버그 수정
 
 기능 브랜치에서 작업 → `develop`으로 Pull Request → 리뷰 후 병합 → 릴리스 시 `main`으로 병합합니다.
 
+## 2차 개선 (REST · React)
+
+- **REST 전환**: 게시글 컨트롤러를 MVC → `@RestController`로 전환 ([정리 문서](docs/rest-migration.md))
+- **React UI/UX**: 무한 스크롤 + 스켈레톤 로딩, 낙관적 좋아요·팔로우, 글쓰기 드래그 앤 드롭·실시간 검증·미리보기
+- **한계 개선**: 쿠폰 동시 발급 시 수량 초과 → 비관적 락 + 유니크 제약
+- **확장 기능**: 사장님 홍보 대시보드 (쿠폰 사용률, 조회수 TOP3, 이벤트별 발급 현황)
+
 ## 문서
 
 - [요구사항·기능 정의서](docs/requirements.md)
 - [ERD·테이블 정의서](docs/erd.md)
 - [화면 설계·사이트맵](docs/screens-sitemap.md)
+- [REST 전환 정리](docs/rest-migration.md)
 - [결과보고서 (pptx)](docs/1팀_팀명_결과보고서.pptx)
