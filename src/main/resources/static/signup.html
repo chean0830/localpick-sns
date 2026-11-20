@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>회원가입 | 로컬픽</title>
+  <link rel="icon" href="/img/logo.svg">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<header id="header"></header>
+<main class="narrow" style="max-width:460px">
+  <form class="card" id="signupForm">
+    <h2 style="margin-top:0">회원가입</h2>
+    <div class="form-row">
+      <label>회원 유형</label>
+      <div class="radio-chips">
+        <input type="radio" name="role" id="rUser" value="USER" checked><label for="rUser">동네 주민</label>
+        <input type="radio" name="role" id="rOwner" value="OWNER"><label for="rOwner">사장님</label>
+      </div>
+    </div>
+    <div class="form-row"><label for="email">이메일</label><input class="input" type="email" id="email" required></div>
+    <div class="form-row"><label for="password">비밀번호 <span class="muted">(8자 이상)</span></label><input class="input" type="password" id="password" minlength="8" required></div>
+    <div class="form-row"><label for="nickname">닉네임</label><input class="input" id="nickname" maxlength="30" required></div>
+    <p class="error" id="error"></p>
+    <button class="btn btn-primary" style="width:100%">가입하기</button>
+  </form>
+</main>
+<script src="/js/app.js"></script>
+<script>
+  LP.renderHeader();
+  document.getElementById('signupForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const body = {
+      email: document.getElementById('email').value,
+      password: document.getElementById('password').value,
+      nickname: document.getElementById('nickname').value,
+      role: document.querySelector('input[name=role]:checked').value
+    };
+    try {
+      await LP.api('/api/auth/signup', { method: 'POST', body });
+      await LP.api('/api/auth/login', { method: 'POST', body: { email: body.email, password: body.password } });
+      location.href = body.role === 'OWNER' ? '/mypage.html#stores' : '/';
+    } catch (err) {
+      document.getElementById('error').textContent = err.message;
+    }
+  });
+</script>
+</body>
+</html>
