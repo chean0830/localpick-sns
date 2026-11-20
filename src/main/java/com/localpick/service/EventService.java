@@ -7,6 +7,7 @@ import com.localpick.repository.CouponRepository;
 import com.localpick.repository.EventRepository;
 import com.localpick.repository.MemberRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -45,7 +46,8 @@ public class EventService {
 
     @Transactional
     public CouponResponse download(Long memberId, Long eventId) {
-        Event event = eventRepository.findById(eventId).orElseThrow(() -> ApiException.notFound("이벤트"));
+        // 비관적 락: 같은 이벤트에 대한 발급 요청은 한 번에 하나씩 처리된다.
+        Event event = eventRepository.findByIdForUpdate(eventId).orElseThrow(() -> ApiException.notFound("이벤트"));
         if (!event.isOngoing(LocalDate.now())) {
             throw ApiException.badRequest("진행 중인 이벤트가 아닙니다.");
         }
@@ -56,7 +58,12 @@ public class EventService {
             throw ApiException.badRequest("쿠폰이 모두 소진되었습니다.");
         }
         Member member = memberRepository.getReferenceById(memberId);
-        return toCoupon(couponRepository.save(new Coupon(event, member)));
+        try {
+            // (event_id, member_id) 유니크 제약이 중복 발급을 DB 차원에서 한 번 더 막는다.
+            return toCoupon(couponRepository.saveAndFlush(new Coupon(event, member)));
+        } catch (DataIntegrityViolationException e) {
+            throw new ApiException(HttpStatus.CONFLICT, "이미 받은 쿠폰입니다.");
+        }
     }
 
     @Transactional
