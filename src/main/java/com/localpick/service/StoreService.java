@@ -96,11 +96,16 @@ public class StoreService {
         long issued = couponRepository.countByEventStoreId(storeId);
         long used = couponRepository.countByEventStoreIdAndStatus(storeId, CouponStatus.USED);
         double rate = issued == 0 ? 0 : Math.round(used * 1000.0 / issued) / 10.0;
+        List<TopPost> topPosts = postRepository
+                .findTop3ByStoreIdAndStatusOrderByViewCountDesc(storeId, PostStatus.OPEN).stream()
+                .map(p -> new TopPost(p.getId(), p.getContent(), p.getViewCount(),
+                        postLikeRepository.countByPostId(p.getId())))
+                .toList();
         return new StoreStats(postRepository.countByStoreId(storeId),
                 postRepository.sumViewCountByStoreId(storeId),
                 postLikeRepository.countByStoreId(storeId),
                 followRepository.countByStoreId(storeId),
-                issued, used, rate);
+                issued, used, rate, topPosts);
     }
 
     /** 관리자: 승인 대기 가게 */

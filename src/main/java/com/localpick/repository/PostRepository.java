@@ -44,6 +44,8 @@ public interface PostRepository extends JpaRepository<Post, Long> {
 
     long countByStoreId(Long storeId);
 
+    List<Post> findTop3ByStoreIdAndStatusOrderByViewCountDesc(Long storeId, PostStatus status);
+
     @Query("select coalesce(sum(p.viewCount), 0) from Post p where p.store.id = :storeId")
     long sumViewCountByStoreId(@Param("storeId") Long storeId);
 
