@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>가게 | 로컬픽</title>
+  <link rel="icon" href="/img/logo.svg">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<header id="header"></header>
+<main class="container" style="max-width:860px">
+  <div class="card" style="padding:0" id="storeCard">
+    <div class="store-cover"></div>
+    <div class="store-info" id="storeInfo"></div>
+  </div>
+  <div class="tabs" id="tabs">
+    <button class="active" data-tab="posts">게시글</button>
+    <button data-tab="events">이벤트</button>
+    <button data-tab="info">가게 정보</button>
+  </div>
+  <div id="tabBody"></div>
+</main>
+<script src="/js/app.js"></script>
+<script>
+  const id = LP.param('id');
+  let store;
+  const body = document.getElementById('tabBody');
+
+  function renderInfo() {
+    const s = store;
+    document.getElementById('storeInfo').innerHTML = `
+      <div class="store-top">
+        <div class="store-avatar">${LP.esc(s.name.charAt(0))}</div>
+        <div>
+          ${s.mine
+            ? `<a class="btn btn-line" href="/mypage.html#stores">가게 관리</a> <a class="btn btn-primary" href="/write.html">홍보 글쓰기</a>`
+            : `<button class="btn ${s.following ? 'btn-line' : 'btn-primary'}" id="followBtn">${s.following ? '팔로잉' : '팔로우'}</button>`}
+        </div>
+      </div>
+      <h2 style="margin:12px 0 4px">${LP.esc(s.name)} ${s.status !== 'OK' ? '<span class="badge">승인 대기</span>' : ''}</h2>
+      <div class="muted">${LP.esc(s.category)} · ${LP.esc(s.region)} · ${LP.esc(s.openHours || '영업시간 미등록')}</div>
+      <div class="stats">
+        <div><b>${s.postCount}</b><span class="muted">게시글</span></div>
+        <div><b id="followerCount">${s.followerCount}</b><span class="muted">팔로워</span></div>
+        <div><b>${s.eventCount}</b><span class="muted">이벤트</span></div>
+      </div>`;
+    const fb = document.getElementById('followBtn');
+    if (fb) fb.addEventListener('click', async () => {
+      if (!LP.me) return LP.requireLogin();
+      const r = await LP.api(`/api/stores/${id}/follow`, { method: 'POST' });
+      store.following = r.following;
+      store.followerCount = r.followerCount;
+      renderInfo();
+      LP.toast(r.following ? '단골 가게로 등록했어요!' : '팔로우를 취소했어요.');
+    });
+  }
+
+  async function showTab(tab) {
+    document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+    if (tab === 'posts') {
+      const posts = await LP.api(`/api/stores/${id}/posts`);
+      body.innerHTML = posts.length ? `<div class="thumb-grid">${posts.map(p => `
+        <a href="/post.html?id=${p.id}">${p.images.length ? `<img src="${LP.esc(p.images[0])}" alt="">` : LP.esc(p.content.slice(0, 40))}</a>`).join('')}</div>`
+        : '<div class="card empty">아직 게시글이 없어요.</div>';
+    } else if (tab === 'events') {
+      const events = await LP.api(`/api/stores/${id}/events`);
+      body.innerHTML = events.length ? `<div class="card">${events.map(e => LP.eventItem(e)).join('')}</div>`
+        : '<div class="card empty">등록된 이벤트가 없어요.</div>';
+    } else {
+      body.innerHTML = `<div class="card">
+        <p><b>주소</b><br>${LP.esc(store.address)}</p>
+        <p><b>영업시간</b><br>${LP.esc(store.openHours || '-')}</p>
+        <p><b>소개</b><br>${LP.esc(store.intro || '-')}</p>
+        <p class="muted">사장님 · ${LP.esc(store.ownerNickname)}</p>
+      </div>`;
+    }
+  }
+
+  document.getElementById('tabs').addEventListener('click', e => {
+    const b = e.target.closest('[data-tab]');
+    if (b) showTab(b.dataset.tab);
+  });
+  LP.bindCoupons(body, () => showTab('events'));
+
+  LP.renderHeader().then(async () => {
+    try {
+      store = await LP.api('/api/stores/' + id);
+      document.title = store.name + ' | 로컬픽';
+      renderInfo();
+      showTab('posts');
+    } catch (e) {
+      document.querySelector('main').innerHTML = `<div class="card empty">${LP.esc(e.message)}</div>`;
+    }
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>관리자 | 로컬픽</title>
+  <link rel="icon" href="/img/logo.svg">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<header id="header"></header>
+<main class="container" style="max-width:860px">
+  <h2>관리자 페이지</h2>
+  <div class="card" style="margin-bottom:16px">
+    <h3 class="section-title">가게 승인 대기</h3>
+    <div id="pending"></div>
+  </div>
+  <div class="card">
+    <h3 class="section-title">게시글 관리 (최근 50개)</h3>
+    <div id="posts"></div>
+  </div>
+</main>
+<script src="/js/app.js"></script>
+<script>
+  async function load() {
+    const stores = await LP.api('/api/admin/stores/pending');
+    document.getElementById('pending').innerHTML = stores.length ? stores.map(s => `
+      <div class="list-item">
+        <div><b>${LP.esc(s.name)}</b> <span class="muted">${LP.esc(s.category)} · ${LP.esc(s.region)}</span></div>
+        <div>
+          <button class="btn btn-primary btn-sm" data-store="${s.id}" data-status="OK">승인</button>
+          <button class="btn btn-line btn-sm" data-store="${s.id}" data-status="REJECT">반려</button>
+        </div>
+      </div>`).join('') : '<p class="muted">대기 중인 가게가 없어요.</p>';
+
+    const posts = await LP.api('/api/admin/posts');
+    document.getElementById('posts').innerHTML = posts.map(p => `
+      <div class="list-item">
+        <a href="/post.html?id=${p.id}" style="flex:1">
+          <span class="badge ${p.type}">${LP.typeLabel(p.type)}</span>
+          ${LP.esc(p.content.slice(0, 40))} <span class="muted">· ${LP.esc(p.authorNickname)}</span>
+        </a>
+        <button class="btn btn-sm ${p.status === 'OPEN' ? 'btn-line' : 'btn-navy'}" data-post="${p.id}"
+          data-status="${p.status === 'OPEN' ? 'BLIND' : 'OPEN'}">${p.status === 'OPEN' ? '블라인드' : '복구'}</button>
+      </div>`).join('');
+  }
+
+  document.querySelector('main').addEventListener('click', async e => {
+    const b = e.target.closest('[data-status]');
+    if (!b) return;
+    const url = b.dataset.store ? `/api/admin/stores/${b.dataset.store}/status` : `/api/admin/posts/${b.dataset.post}/status`;
+    try {
+      await LP.api(url, { method: 'PATCH', body: { status: b.dataset.status } });
+      load();
+    } catch (err) { LP.toast(err.message); }
+  });
+
+  LP.requireLogin().then(async me => {
+    await LP.renderHeader();
+    if (me.role !== 'ADMIN') {
+      document.querySelector('main').innerHTML = '<div class="card empty">관리자만 접근할 수 있어요.</div>';
+      return;
+    }
+    load();
+  });
+</script>
+</body>
+</html>

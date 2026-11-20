@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>검색 | 로컬픽</title>
+  <link rel="icon" href="/img/logo.svg">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<header id="header"></header>
+<main class="narrow" style="max-width:720px">
+  <h2 id="title"></h2>
+  <div class="card" id="storeBox" style="margin-bottom:16px;display:none">
+    <h3 class="section-title">가게</h3>
+    <div id="stores"></div>
+  </div>
+  <h3 class="section-title">게시글</h3>
+  <div class="feed" id="posts"></div>
+</main>
+<script src="/js/app.js"></script>
+<script>
+  const q = LP.param('q'), tag = LP.param('tag');
+  LP.bindLikes(document.getElementById('posts'));
+  LP.renderHeader().then(async () => {
+    document.getElementById('title').textContent = tag ? `#${tag}` : `‘${q || ''}’ 검색 결과`;
+    const params = new URLSearchParams(tag ? { tag } : { q: q || '' });
+    const r = await LP.api('/api/search?' + params);
+    if (r.stores.length) {
+      document.getElementById('storeBox').style.display = 'block';
+      document.getElementById('stores').innerHTML = r.stores.map(s => `
+        <div class="list-item"><a href="/store.html?id=${s.id}"><b>${LP.esc(s.name)}</b>
+        <span class="muted"> ${LP.esc(s.category)} · ${LP.esc(s.region)}</span></a></div>`).join('');
+    }
+    document.getElementById('posts').innerHTML = r.posts.length
+      ? r.posts.map(p => LP.postCard(p)).join('')
+      : '<div class="card empty">검색 결과가 없어요.</div>';
+  });
+</script>
+</body>
+</html>

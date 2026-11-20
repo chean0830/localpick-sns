@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>진행 중 이벤트 | 로컬픽</title>
+  <link rel="icon" href="/img/logo.svg">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<header id="header"></header>
+<main class="narrow" style="max-width:720px">
+  <h2>진행 중 이벤트</h2>
+  <div class="card" id="list"></div>
+</main>
+<script src="/js/app.js"></script>
+<script>
+  const list = document.getElementById('list');
+  async function load() {
+    const events = await LP.api('/api/events');
+    list.innerHTML = events.length ? events.map(e => LP.eventItem(e)).join('') : '<p class="empty">진행 중인 이벤트가 없어요.</p>';
+  }
+  LP.bindCoupons(list, load);
+  LP.renderHeader().then(load);
+</script>
+</body>
+</html>
