@@ -5,6 +5,8 @@ import com.localpick.domain.StoreStatus;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
+import java.util.List;
+
 public class StoreDto {
 
     public record StoreRequest(
@@ -33,7 +35,12 @@ public class StoreDto {
     }
 
     public record StoreStats(long postCount, long totalViews, long totalLikes, long followerCount,
-                             long couponIssued, long couponUsed, double couponUseRate) {
+                             long couponIssued, long couponUsed, double couponUseRate,
+                             List<TopPost> topPosts) {
+    }
+
+    /** 대시보드: 조회수 상위 게시글 */
+    public record TopPost(Long id, String content, int viewCount, long likeCount) {
     }
 
     public record StatusRequest(StoreStatus status) {
